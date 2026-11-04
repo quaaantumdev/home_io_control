@@ -40,6 +40,7 @@ from .hub_names import (
     CONF_VFEM_PIN,
     MIN_RAIN_SENSOR_POLL_INTERVAL_MS,
     MIN_STATUS_POLL_INTERVAL_MS,
+    MIN_STATUS_REFRESH_INTERVAL_MS,
     home_io_control_ns,
 )
 
@@ -588,4 +589,11 @@ def validate_rain_sensor_poll_interval(value):
     """Validate rain_sensor_poll_interval is at least MIN_RAIN_SENSOR_POLL_INTERVAL_MS."""
     return _validate_min_interval(
         value, MIN_RAIN_SENSOR_POLL_INTERVAL_MS, "rain_sensor_poll_interval"
+    )
+
+
+def validate_status_refresh_interval(value):
+    """Validate status_refresh_interval is at least MIN_STATUS_REFRESH_INTERVAL_MS."""
+    return _validate_min_interval(
+        value, MIN_STATUS_REFRESH_INTERVAL_MS, "status_refresh_interval"
     )

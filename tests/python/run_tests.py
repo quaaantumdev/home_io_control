@@ -170,6 +170,9 @@ def poll_intervals_have_a_floor():
     assert v.validate_rain_sensor_poll_interval("15min") is not None
     assert v.validate_rain_sensor_poll_interval("1min") is not None
     expect_invalid(v.validate_rain_sensor_poll_interval, "59s", "rain_sensor_poll_interval must be at least 60000ms")
+    assert v.validate_status_refresh_interval("15min") is not None
+    assert v.validate_status_refresh_interval("1min") is not None
+    expect_invalid(v.validate_status_refresh_interval, "59s", "status_refresh_interval must be at least 60000ms")
 
 
 @case("hub_validators.validate_linked_remote_entry")

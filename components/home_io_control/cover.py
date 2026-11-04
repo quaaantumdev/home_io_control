@@ -5,8 +5,8 @@
 ## Bridges the YAML ``cover:`` platform declaration to the runtime IOHomeCover entity.
 ## Shared device-binding logic lives in platform_common.py; cover-specific extras — the
 ## ``invert_position`` option, the named-position companion buttons (favorite, ventilation), the opt-in
-## ``rain_sensor_poll_interval`` key with its rain binary sensor and the opt-in ``battery`` key with
-## its two battery sensors — stay here.
+## ``rain_sensor_poll_interval`` key with its rain binary sensor, the opt-in ``status_refresh_interval``
+## key and the opt-in ``battery`` key with its two battery sensors — stay here.
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -32,6 +32,7 @@ from .hub_validators import (
     device_features,
     device_type_name,
     validate_rain_sensor_poll_interval,
+    validate_status_refresh_interval,
 )
 from .platform_common import (
     companion_entity_name,
@@ -56,6 +57,7 @@ CONF_SILENT_SWITCH_ID = "_silent_switch_id"
 CONF_OPTIMISTIC_STATE = "optimistic_state"
 CONF_RAIN_SENSOR_POLL_INTERVAL = "rain_sensor_poll_interval"
 CONF_RAIN_SENSOR_ID = "_rain_sensor_id"
+CONF_STATUS_REFRESH_INTERVAL = "status_refresh_interval"
 CONF_BATTERY = "battery"
 CONF_BATTERY_LOW_SENSOR_ID = "_battery_low_sensor_id"
 CONF_BATTERY_SENSOR_ID = "_battery_sensor_id"
@@ -218,6 +220,9 @@ CONFIG_SCHEMA = cv.All(
             ): validate_rain_sensor_poll_interval
         }
     )
+    .extend(
+        {cv.Optional(CONF_STATUS_REFRESH_INTERVAL): validate_status_refresh_interval}
+    )
     .extend({cv.Optional(CONF_BATTERY): cv.boolean})
     .extend({cv.Optional(CONF_OPTIMISTIC_STATE, default=True): cv.boolean})
     .extend(cv.COMPONENT_SCHEMA),
@@ -287,6 +292,13 @@ async def to_code(config):
         await cg.register_component(rain_sensor, rain_config)
         cg.add(rain_sensor.set_parent(parent))
         cg.add(rain_sensor.set_device_id(config[CONF_IO_DEVICE_ID]))
+
+    if CONF_STATUS_REFRESH_INTERVAL in config:
+        cg.add(
+            var.set_status_refresh_interval(
+                config[CONF_STATUS_REFRESH_INTERVAL].total_milliseconds
+            )
+        )
 
     if CONF_BATTERY_LOW_SENSOR_ID in config:
         cg.add(var.set_battery_entities(True))

@@ -147,6 +147,9 @@ cover:
     # schedules the limitation read; the covers above omit it, so this compiles both branches. It
     # sits on the nameless entry so the generated name falls back to the bare suffix.
     rain_sensor_poll_interval: 15min
+    # `status_refresh_interval:` adds no entity, only the schedule; the covers above omit it, so this
+    # compiles both branches of the setter.
+    status_refresh_interval: 15min
 
 light:
   - platform: home_io_control

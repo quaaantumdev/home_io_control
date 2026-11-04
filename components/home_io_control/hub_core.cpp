@@ -38,8 +38,8 @@ constexpr size_t ENROLLMENT_CLASS_HEX_BUFFER_SIZE = 8;
 constexpr uint32_t BLOCKING_WARNING_THRESHOLD_MS =
     250;  ///< setup() and exchanges can legitimately block longer than generic ESPHome components.
 
-/// Random number for the rain poll's jitter. ESPHome's random_uint32() on firmware, a settable
-/// value in host tests.
+/// Random number for the jitter of the rain poll and the status refresh. ESPHome's random_uint32() on
+/// firmware, a settable value in host tests.
 uint32_t poll_jitter_random() { return random_uint32(); }
 
 /// Boot-log wording for whether a 1W identity mirrors open/close/position, and who decided it.
@@ -336,6 +336,16 @@ void IOHomeControlComponent::set_device_rain_poll_interval(const std::string &de
   this->rain_poll_policy_.set_interval(device_id, interval_ms, millis(), poll_jitter_random());
 }
 
+void IOHomeControlComponent::set_device_status_refresh_interval(const std::string &device_id, uint32_t interval_ms) {
+  if (this->get_device(device_id) == nullptr)
+    return;
+  this->status_refresh_policy_.set_interval(device_id, interval_ms, millis(), poll_jitter_random());
+}
+
+void IOHomeControlComponent::note_status_reported_(const std::string &device_id) {
+  this->status_refresh_policy_.on_status_reported(device_id, millis(), poll_jitter_random());
+}
+
 void IOHomeControlComponent::schedule_background_poll_backoff_(const std::string &device_id, bool auth_like,
                                                                bool device_moving) {
   uint32_t const now = millis();
@@ -432,14 +442,27 @@ void IOHomeControlComponent::loop() {
   this->settle_ended_status_tracking_();
 
   // Periodic status polling
-  if (!this->busy_) {
-    auto due = this->poll_policy_.pop_due_device(millis());
-    if (due.has_value())
-      this->queue_request_device_status(*due);
-    if (this->rain_poll_policy_.has_due(millis())) {
-      const auto rain_due = this->rain_poll_policy_.pop_due_device(millis(), poll_jitter_random());
-      if (rain_due.has_value())
-        this->queue_request_device_limitation(*rain_due);
+  if (!this->busy_)
+    this->queue_due_periodic_reads_();
+}
+
+void IOHomeControlComponent::queue_due_periodic_reads_() {
+  auto due = this->poll_policy_.pop_due_device(millis());
+  if (due.has_value())
+    this->queue_request_device_status(*due);
+  if (this->rain_poll_policy_.has_due(millis())) {
+    const auto rain_due = this->rain_poll_policy_.pop_due_device(millis(), poll_jitter_random());
+    if (rain_due.has_value())
+      this->queue_request_device_limitation(*rain_due);
+  }
+  // A device that reported nothing for a whole interval is read. A device that is commanded or read
+  // anyway never gets here: each status it reports moves its refresh out (note_status_reported_()).
+  if (this->status_refresh_policy_.has_due(millis())) {
+    const auto refresh_due = this->status_refresh_policy_.pop_due_device(millis(), poll_jitter_random());
+    if (refresh_due.has_value()) {
+      ESP_LOGD(TAG, "Device %s: no status reported for a refresh interval (%" PRIu32 " s): reading it",
+               refresh_due->c_str(), this->status_refresh_policy_.get_interval(*refresh_due) / 1000);
+      this->queue_request_device_status(*refresh_due);
     }
   }
 }

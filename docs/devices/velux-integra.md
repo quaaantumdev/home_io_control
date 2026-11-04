@@ -209,6 +209,11 @@ Other signs of a rain closure, without the poll:
 
 The same read is available once as the `limitation` [diagnostic probe](../diagnostic-probes.md),
 for checking what a window reports without enabling the sensor.
+
+A rain closure moves the window without telling the hub, so the cover keeps its old position
+until something reads it; so does a KLR 200 command the hub did not overhear. Set
+`status_refresh_interval` on the window's cover to read it at rest on a schedule; see
+[Refreshing the status at rest](../configuration/cover.md#refreshing-the-status-at-rest).
 Field data comes from issue #98.
 
 ## Evidence
