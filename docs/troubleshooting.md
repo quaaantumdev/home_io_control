@@ -74,8 +74,12 @@ Pairing reported `paired`, the entity exists, and commands do nothing.
 - **Before the first move, position is genuinely unknown.** The protocol has no "report your
   position" command that works from cold, so the cover shows no percentage until the device reports
   one. This is expected on a fresh boot, not a fault.
-- **If state only updates when you command the device**, the device is not sending unsolicited
-  updates. Set `status_poll_interval` on the entity — see [Covers](configuration/cover.md).
+- **If the position only updates once a move has ended**, set `status_poll_interval` on the
+  entity to poll more often while it moves — see [Covers](configuration/cover.md).
+- **If a change made elsewhere only shows up when you command the device** — another
+  controller's command the hub did not overhear, or a window its rain sensor closed — the device
+  does not report it by itself. Set `status_refresh_interval` on the cover so the hub reads it at
+  rest — see [Refreshing the status at rest](configuration/cover.md#refreshing-the-status-at-rest).
 - **If a wall remote moves the device and Home Assistant does not notice**, the hub is not
   listening for that remote. Add it to `linked_remotes:` — see
   [Linked remotes](configuration/remotes.md#linked-remotes).

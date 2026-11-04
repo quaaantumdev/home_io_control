@@ -41,6 +41,7 @@
 #include "device_registry.h"
 #include "status_poll_policy.h"
 #include "rain_poll_policy.h"
+#include "status_refresh_policy.h"
 #include "operation_queue.h"
 #include "exchange_engine.h"
 #include "pairing_engine.h"
@@ -523,6 +524,11 @@ class IOHomeControlComponent : public Component,
   /// @param device_id Target device ID.
   /// @param interval_ms Poll interval in milliseconds; zero removes the device from the schedule.
   virtual void set_device_rain_poll_interval(const std::string &device_id, uint32_t interval_ms);
+  /// Opt a registered device into the status refresh at rest: a status read whenever the device has
+  /// not reported its status for a whole interval.
+  /// @param device_id Target device ID.
+  /// @param interval_ms Refresh interval in milliseconds; zero removes the device from the schedule.
+  virtual void set_device_status_refresh_interval(const std::string &device_id, uint32_t interval_ms);
 
   // --- High-level operations ---
   /// Send a position command to a device.
@@ -914,6 +920,9 @@ class IOHomeControlComponent : public Component,
   /// tests/corpus/captures/exchange/somfy_awning_exchange_ack_reports_stale_target_*.yaml), so
   /// execute_request_and_update_() passes false there; every other caller trusts as before.
   void update_device_status_(const IoFrame &frame, bool trust_position = true);
+  /// The device just reported its status: move its status refresh (if it has one) a whole interval out.
+  /// @param device_id Device that reported.
+  void note_status_reported_(const std::string &device_id);
   /// Record that a 1W frame just went out on the radio — ours or someone else's — updating
   /// last_1w_activity_ms_ and — when this frame starts a new burst (see
   /// decisions::oneway_burst_started_fresh()) — first_1w_activity_ms_.
@@ -956,6 +965,10 @@ class IOHomeControlComponent : public Component,
   /// poll never came back — is taken as at rest there: with no poll left, the device's own flag
   /// stands. Any other device is left as it is.
   void settle_ended_status_tracking_();
+  /// Queue the reads the periodic schedules have due: the follow-up status poll
+  /// (StatusPollPolicy), the rain sensor's limitation read and the at-rest status refresh. Called
+  /// from loop() only while no exchange is running.
+  void queue_due_periodic_reads_();
   /// Arm the confirming poll that follows a command, because a CMD_EXECUTE reply is never trusted
   /// for position (see update_device_status_()'s trust_position parameter) and therefore leaves the
   /// hub with no idea where the device actually is. Re-arms the bounded tracking window rather than
@@ -1346,7 +1359,8 @@ class IOHomeControlComponent : public Component,
   /// undecoded probe opcode. See set_diagnostic_probes_enabled().
   bool diagnostic_probes_enabled_{false};
   StatusPollPolicy poll_policy_;
-  RainPollPolicy rain_poll_policy_;  ///< Schedule of the opt-in rain sensor poll.
+  RainPollPolicy rain_poll_policy_;            ///< Schedule of the opt-in rain sensor poll.
+  StatusRefreshPolicy status_refresh_policy_;  ///< Schedule of the opt-in status refresh at rest.
   OperationQueue op_queue_;
   /// Per-attempt pairing telemetry. PairingEngine records into it and, during an attempt, attaches it
   /// to ExchangeEngine as its TransmitObserver.

@@ -56,6 +56,9 @@ class IOHomeCover : public cover::Cover, public Component, public DeviceBoundEnt
   /// @brief Opt this cover into the periodic rain sensor poll (from YAML `rain_sensor_poll_interval`).
   /// @param interval_ms Poll interval in milliseconds; zero (the default) means no poll.
   void set_rain_sensor_poll_interval(uint32_t interval_ms) { this->rain_sensor_poll_interval_ms_ = interval_ms; }
+  /// @brief Opt this cover into the status refresh at rest (from YAML `status_refresh_interval`).
+  /// @param interval_ms Refresh interval in milliseconds; zero (the default) means no refresh.
+  void set_status_refresh_interval(uint32_t interval_ms) { this->status_refresh_interval_ms_ = interval_ms; }
   /// @brief Query whether this device takes intermediate positions (a slider) or only open / close / stop.
   /// @return true if the device has device_feature::LEVELS.
   [[nodiscard]] bool supports_intermediate_positions() const;
@@ -85,6 +88,7 @@ class IOHomeCover : public cover::Cover, public Component, public DeviceBoundEnt
   bool invert_explicit_{false};
   float last_io_position_{UNKNOWN_POSITION};
   uint32_t rain_sensor_poll_interval_ms_{0};  ///< 0 = not opted in; no rain poll is scheduled.
+  uint32_t status_refresh_interval_ms_{0};    ///< 0 = not opted in; no status refresh is scheduled.
 };
 
 }  // namespace home_io_control

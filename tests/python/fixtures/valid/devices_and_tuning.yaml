@@ -16,6 +16,7 @@ cover:
     linked_remotes: ["class:vertical_exterior_awning", "class:0x14"]
     status_poll_interval: 60s
     rain_sensor_poll_interval: 15min
+    status_refresh_interval: 15min
     battery: true
     travel_speed: default
 

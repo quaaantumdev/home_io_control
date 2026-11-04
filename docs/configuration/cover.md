@@ -35,6 +35,7 @@ accepted and the cover is created; the warning asks you to
 - `silent` (Optional): Move at the manufacturer app's "silent operation" speed — slower and quieter. Only a kind that takes a travel-speed parameter accepts it: config validation rejects `silent:` on garage openers, on interior venetian blinds, on dual roller shutters and on any device of subtype 58, and its message says to remove the key. On an interior venetian blind the first functional parameter is the slat orientation and on a dual roller shutter it is the upper curtain, so neither takes a speed there (experimental, see [Interior venetian blinds and dual roller shutters](cover.md#interior-venetian-blinds-and-dual-roller-shutters)). It selects the protocol's slow travel profile on position moves and on the favorite ("My") command. STOP is excluded because stopping has no travel speed, and ventilation and tilt because nothing has been captured for them yet — they keep their existing payloads rather than being guessed at. Nothing on the wire reports a device's current profile, so, like `invert_position`, this is a declared preference rather than a readback. Declaring the key also generates a `<Cover Name> Silent Operation` switch so the profile can be changed at runtime; the YAML value is the boot state. Omit the key entirely and no switch is created. `travel_speed` is the three-way form of the same setting.
 - `travel_speed` (Optional): The speed a position move asks the motor for: `default`, `silent` or `fast`. `fast` is what the hub sends when neither this key nor `silent` is set. `default` sends the short frame a wall control pad sends, which leaves the speed to the motor. The kinds that accept `silent` accept this key, and the two are exclusive: `silent: true` is `travel_speed: silent`, `silent: false` is `travel_speed: fast`. Declaring the key generates a `<Cover Name> Travel Speed` select so the speed can be changed at runtime; the YAML value is the boot state. See [Travel speed](cover.md#travel-speed).
 - `rain_sensor_poll_interval` (Optional): Ask the device how far its own rain protection lets it open, once per interval, and report the answer as a binary sensor. The minimum is `1min` and there is no default: omit the key and nothing is sent and no entity is created. Declaring it generates a `<Cover Name> Rain sensor` binary sensor. Validated on VELUX windows with a wired rain sensor; a Somfy Sunea awning answers the request with a reply this project cannot read as an opening limit, so the sensor stays without state there. Read [Polling for rain](cover.md#polling-for-rain) before choosing an interval, because every poll uses transmit time that the hub shares with everything else it sends.
+- `status_refresh_interval` (Optional): Read the device's status whenever it has reported none for this long, so a change the hub did not hear shows up within the interval. The minimum is `1min` and there is no default: omit the key and the hub reads a cover at rest only when something prompts it. It creates no entity. See [Refreshing the status at rest](cover.md#refreshing-the-status-at-rest).
 - `battery` (Optional, default: `false`): Report the battery level a battery or solar device includes in its status replies. Generates a `<Cover Name> Battery Low` binary sensor and a `<Cover Name> Battery` text sensor. It sends nothing extra over the radio. See [Battery level](cover.md#battery-level).
 - All standard options from the ESPHome cover base schema also apply, including `id`, `device_class` (see [Home Assistant device class](cover.md#home-assistant-device-class)), `icon`, entity metadata, MQTT options, and cover automations such as `on_opening`, `on_closing`, and `on_idle`.
 
@@ -175,6 +176,48 @@ The two figures for an always-alive device are the 32-byte start preamble of the
 A `low_power` device is woken with the long preamble on every poll, which costs far more transmit
 time and draws on the device's battery each time. Poll it every hour or more. At one minute it
 would by itself use more than three times the whole hourly allowance.
+
+## Refreshing the status at rest
+
+The hub learns a cover's state from its own commands and their follow-up polls, from status
+updates the device sends by itself, and from another controller's exchanges it overhears, after
+which it reads the device. A change it hears nothing of stays unseen until the next command: a
+whole exchange between the device and another controller can fall into a moment the hub is
+transmitting or listening on another channel, and a window that a rain sensor closes tells nobody.
+With `status_refresh_interval` set, the hub reads the cover's status whenever the cover has
+reported none for that long.
+
+```yaml
+cover:
+  - platform: home_io_control
+    name: "Roof Window"
+    io_device_id: "123ABC"
+    io_device_type: window_opener
+    status_refresh_interval: 5min
+```
+
+What to expect:
+
+- **Every status the device reports restarts the wait.** A follow-up poll after a command, a read
+  after another controller's command, a status update the device sends by itself: each moves the
+  next refresh a whole interval out. A cover that is moved every few minutes is never read on top
+  of that.
+- **A change shows up within the interval**, give or take the 10 % below. Set
+  `logger: level: DEBUG` to see each refresh in the log.
+- **The interval varies by up to 10 %** from refresh to refresh, so covers that reported together,
+  after a group command or at boot, do not stay in step.
+- **A refresh is a background read.** It waits for commands and 1W activity, and pairing drops it.
+  A read that gets no answer is tried three times, counts in the cover's Exchange Failures like
+  any other unanswered request, and is tried again one interval later.
+- **It is not `status_poll_interval`**, which only sets the cadence while the cover moves.
+
+A refresh is one status read and its reply, which costs about as much transmit time as a rain
+sensor poll at the same interval: see [Choosing an interval](cover.md#choosing-an-interval). For
+a mains-powered cover, 5 minutes is a good start: a change made elsewhere shows up within minutes,
+and six such covers on one hub use about a quarter of the hourly allowance. Add up all covers on
+the hub before going shorter, since commands and their polls share the same allowance. A
+`low_power` device is woken with the long preamble on every read, which draws on its battery:
+refresh it every hour or more, or not at all.
 
 ## Battery level
 
@@ -320,7 +363,7 @@ lambda: |-
 ## Notes
 
 - The favorite command is one-way only: move to favorite. This component does not expose a sensor for reading the stored favorite position value, and it does not yet expose a save/delete favorite workflow, because no verified controller-side protocol command has been identified.
-- `status_poll_interval` is movement-scoped, not a continuous background refresh. The hub polls only while a command or overheard remote activity suggests the device is still moving, and stops once the device reports a stable state or the bounded polling window expires. Many devices report their remaining travel time in seconds in their status replies, and the next poll comes after **min(remaining time + 1 s, configured interval)**, so the interval is a ceiling: a device can shorten it but never stretch it. Without `status_poll_interval`, the ceiling is 3 s. When a device that counts down reports 0 s left, the next poll comes about 1 s later, so the resting position shows up promptly. The remaining time and the chosen delay are visible at debug log level.
+- `status_poll_interval` is movement-scoped, not a continuous background refresh; for that, see [Refreshing the status at rest](cover.md#refreshing-the-status-at-rest). The hub polls only while a command or overheard remote activity suggests the device is still moving, and stops once the device reports a stable state or the bounded polling window expires. Many devices report their remaining travel time in seconds in their status replies, and the next poll comes after **min(remaining time + 1 s, configured interval)**, so the interval is a ceiling: a device can shorten it but never stretch it. Without `status_poll_interval`, the ceiling is 3 s. When a device that counts down reports 0 s left, the next poll comes about 1 s later, so the resting position shows up promptly. The remaining time and the chosen delay are visible at debug log level.
 - The hub reads a device itself after another controller moved or changed it, and at most every 10 minutes after another controller only read it. A status read changes nothing on the device; a write, or a challenge that follows no heard read, does. A gateway that polls its devices in the background therefore costs the device one extra read per 10 minutes at most, and still lets the cover pick up a change the hub did not hear, such as a rain closure or a button on the motor.
 - After a STOP the settle poll is capped at about 1 s regardless of interval or hint, so Home Assistant gets the resting position quickly even if the device was mid-travel.
 - While the cover is moving, the hub does not back off when a poll gets no answer: the next poll comes at the usual cadence, at most 5 s later. Only a third miss in a row is retried after about 5 s, and after longer delays if it keeps failing. A poll of a cover at rest backs off from the first miss. A motor can drop its reply at the moment it stops at the end of its travel, so the final position can show up a poll later than expected (issue #178).
