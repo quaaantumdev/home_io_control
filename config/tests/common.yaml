@@ -147,6 +147,9 @@ cover:
     # schedules the limitation read; the covers above omit it, so this compiles both branches. It
     # sits on the nameless entry so the generated name falls back to the bare suffix.
     rain_sensor_poll_interval: 15min
+    # Declaring `travel_speed:` is what generates the Travel Speed select; "Test Silent Cover"
+    # declares `silent:` instead (the two are exclusive), so the pair compiles both.
+    travel_speed: default
 
 light:
   - platform: home_io_control
